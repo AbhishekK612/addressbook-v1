@@ -1,0 +1,75 @@
+pipeline {
+    
+   agent none
+
+    tools{
+     jdk "java17"
+      maven "mymaven"
+    }
+   parameters {
+         string(name: 'Env', defaultValue: 'Test', description: 'Version to deploy')
+        booleanParam(name: 'executeTests', defaultValue: true, description: 'Decide to run test cases')
+        choice(name: 'APPVERSION', choices: ['1.1', '1.2', '1.3'], description: 'Select application version')
+   }
+    // environment {
+    //         BUILD_SERVER = 'ec2-user@172.31.42.134'
+    // }
+    stages {
+        
+        stage('Compile') {
+            agent any
+            steps {
+                echo "Compiling the Code in ${params.Env} environment"
+                sh 'mvn compile'
+            }
+        }
+        stage('Code Review') {
+             agent any
+            steps {
+                echo 'Reviewing the Code'
+                sh "mvn pmd:pmd"
+            }
+        }
+        stage('Unit Test') {
+            agent any
+            when {
+                expression { 
+                    params.executeTests == true} 
+                    }
+            steps {
+                echo 'Unit Testing the Code'
+                sh 'mvn test'
+            }
+            post{
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+       stage('Coverage Analysis') {
+            agent { label 'linux_slave' }
+            steps {
+                sh 'mvn verify'
+            }
+        }
+
+        stage('Package') {//dev
+       agent any
+        
+        // agent any
+        //    input{
+        //    message "Select the version to deploy"
+        //    ok "version selected"
+        //    parameters{
+        //        choice(name:'NEWAPP',choices:['1.2','2.1','3.1'])
+        //    }
+        //   }/*  */
+          // agent {label 'linux_slave'}
+           steps {
+               echo "Package the code ${params.APPVERSION}"
+               sh "mvn package"
+           }
+       }
+    }
+}
+
